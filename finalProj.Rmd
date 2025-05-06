@@ -1,0 +1,154 @@
+---
+title: "Supplement Sales Analysis"
+author: "Tanisha Alam"
+date: "2025-05-06"
+output:
+ html_document:
+ theme: flatly
+ code_folding: hide
+ toc: true
+ toc_float: true
+ code_download: true
+---
+
+# Introduction
+
+Supplementation has recently been increasing in popularity and more research is being done on its potential uses. This project aims to investigate how supplement sales vary across seasons and what factors influence revenue trends using weekly sales data from 2020 to 2025. Understanding these patterns can help inform marketing strategies and inventory decisions.
+
+## The Data
+
+The dataset comes from [Kaggle](https://www.kaggle.com/datasets/zahidmughal2343/supplement-sales-data) and contains 4,384 entries of weekly sales data for a variety of health and wellness supplements from January 2020 to April 2025.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(tidyr)
+library(readr)
+
+data <- read_csv("Supplement_Sales_Weekly_Expanded.csv", 
+                 col_types = cols(date = col_character()))
+
+data
+```
+
+# Data Wrangling
+
+-   Using `separate_wider_delim()`, use the `Date` column to create three new columns: `year`, `month`, and `day`.
+
+-   Using `mutate()`, use the month values to assign seasons.
+
+Now we have a new column called `Season`. This allows us to analyze trends by time period.
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE}
+
+
+data_new <- data |>
+  separate_wider_delim(
+    cols = Date,
+    delim = "-",
+    names = c("year", "month", "day")
+  ) |>
+  mutate(
+    month = as.integer(month),
+    Season = case_when(
+      month %in% c(12, 01, 02) ~ "Winter",
+      month %in% c(03, 04, 05) ~ "Spring",
+      month %in% c(06, 07, 08) ~ "Summer",
+      month %in% c(09, 10, 11) ~ "Fall"
+      )
+    )
+
+data_new
+
+```
+
+-   Using `group_by()`, groups dataset by `Season` and `Category`
+
+-   Using `summarise()`, calculates summary statistics within each group
+
+Now we have a sum of the units sold, price, revenue by category and season!
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE}
+season_summary <- data_new |>
+  group_by(Season, Category) |>
+  summarise(
+    total_units = sum(`Units Sold`),
+    average_price = mean(Price),
+    total_revenue = sum(Revenue))
+    
+season_summary
+
+```
+
+# Data Visualization
+
+## Bar Plot of Seasonal Average Sales by Category
+
+This bar chart compares demand for each product category across seasons.
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE}
+
+season_summary |>
+  ggplot(aes(x = Season, y = total_units, fill = Category)) +
+  geom_col(position = "dodge", color = "black") +
+  labs(title = "Total Units Sold by Season and Category", x = "Season", y = "Units Sold") +
+  theme_minimal()
+            
+```
+
+## Average Price by Season (3 Key Categories)
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE}
+filtered_prices <- season_summary |>
+  filter(Category %in% c("Vitamin", "Hydration", "Sleep Aid"))
+
+ggplot(filtered_prices, aes(x = Season, y = average_price, fill = Category)) +
+  geom_col(position = "dodge", color = "black") +
+  labs(
+    title = "Average Price by Season for Vitamin, Hydration, and Sleep Aid",
+    x = "Season",
+    y = "Average Price (USD)",
+    fill = "Category"
+  ) +
+  theme_minimal()
+```
+
+# Modeling: Linear Regression on
+
+-   We use a simple linear regression model to see how `Revenue` depends on `Price`, `Category`, and `Season`.
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE}
+
+data_model <- data_new |>
+  mutate(
+    Season = factor(Season),
+    Category = factor(Category)
+  )
+
+model <- lm(Revenue ~ Price + Category + Season, data = data_model)
+summary(model)
+
+```
+
+The regression summary helps us quantify which factors most influence revenue.
+
+-   `Category` and `Season` variables were not individually significant (all p-values \> 0.1), suggesting that, after accounting for price, differences in average revenue across product types or seasons are not statistically strong in this linear model.
+
+-   The R-squared value is very high at 0.955, indicating that the model explains about 95.5% of the variability in revenue. This suggests that `Price` is a major driver of revenue across all categories and seasons.
+
+# Discussion
+
+The visualizations indicate a slight seasonal variation in both pricing and units sold. It seems that vitamin and mineral products are sold more in the Spring and Winter.
+
+Prices seem to vary a bit by season. Sleep aids tend to decrease in price around the Winter season. Summer the prices seem higher for the 3 categories.
+
+## Limitations
+
+-   Dates are weekly but we aggregated by season — finer time patterns may be missed.
+
+## Future steps
+
+-   Try a decision tree or time series model to better capture non-linear effects.
+
+# References
+
+[Supplement Sales Data](https://www.kaggle.com/datasets/zahidmughal2343/supplement-sales-data)
